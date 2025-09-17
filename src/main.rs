@@ -1,44 +1,51 @@
-use eframe::{egui, epi};
 use rand::Rng;
+use std::io;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum State {
+enum AnimalType {
+    Monkey,
+    Giraffe,
+    Elephant,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum AnimalState {
     Alive,
-    CannotWalk,
     Dead,
+    CannotWalk,
 }
 
 #[derive(Debug, Clone)]
 struct Animal {
-    species: &'static str,
+    animal_type: AnimalType,
     health: f32,
-    state: State,
+    state: AnimalState,
 }
 
 impl Animal {
-    fn new(species: &'static str) -> Self {
-        Self {
-            species,
+    fn new(animal_type: AnimalType) -> Self {
+        Animal {
+            animal_type,
             health: 100.0,
-            state: State::Alive,
+            state: AnimalState::Alive,
         }
     }
 
     fn apply_damage(&mut self, percentage: f32) {
-        if self.state == State::Dead {
+        if self.state == AnimalState::Dead {
             return;
         }
-
         self.health -= self.health * (percentage / 100.0);
-        self.health = self.health.max(0.0);
+        if self.health < 0.0 {
+            self.health = 0.0;
+        }
         self.update_state();
     }
 
     fn feed(&mut self, percentage: f32) {
-        if self.state == State::Dead {
+        if self.state == AnimalState::Dead {
             return;
         }
-
         self.health += self.health * (percentage / 100.0);
         if self.health > 100.0 {
             self.health = 100.0;
@@ -47,109 +54,117 @@ impl Animal {
     }
 
     fn update_state(&mut self) {
-        match self.species {
-            "Elephant" => {
-                if self.state == State::CannotWalk && self.health < 70.0 {
-                    self.state = State::Dead;
-                } else if self.health < 70.0 {
-                    self.state = State::CannotWalk;
-                } else {
-                    self.state = State::Alive;
-                }
-            }
-            "Monkey" => {
+        match self.animal_type {
+            AnimalType::Monkey => {
                 if self.health < 30.0 {
-                    self.state = State::Dead;
+                    self.state = AnimalState::Dead;
                 } else {
-                    self.state = State::Alive;
+                    self.state = AnimalState::Alive;
                 }
             }
-            "Giraffe" => {
+            AnimalType::Giraffe => {
                 if self.health < 50.0 {
-                    self.state = State::Dead;
+                    self.state = AnimalState::Dead;
                 } else {
-                    self.state = State::Alive;
+                    self.state = AnimalState::Alive;
                 }
             }
-            _ => {}
+            AnimalType::Elephant => {
+                if self.health < 70.0 {
+                    if self.state == AnimalState::CannotWalk {
+                        self.state = AnimalState::Dead;
+                    } else {
+                        self.state = AnimalState::CannotWalk;
+                    }
+                } else {
+                    self.state = AnimalState::Alive;
+                }
+            }
         }
     }
 }
 
-struct ZooApp {
+struct Zoo {
     animals: Vec<Animal>,
-    hours_passed: u32,
+    hour: u32,
 }
 
-impl ZooApp {
+impl Zoo {
     fn new() -> Self {
         let mut animals = Vec::new();
         for _ in 0..5 {
-            animals.push(Animal::new("Monkey"));
-            animals.push(Animal::new("Giraffe"));
-            animals.push(Animal::new("Elephant"));
+            animals.push(Animal::new(AnimalType::Monkey));
+            animals.push(Animal::new(AnimalType::Giraffe));
+            animals.push(Animal::new(AnimalType::Elephant));
         }
-        Self { animals, hours_passed: 0 }
+        Zoo { animals, hour: 0 }
     }
 
-    fn pass_time(&mut self) {
+    fn pass_hour(&mut self) {
         let mut rng = rand::thread_rng();
         for animal in &mut self.animals {
-            let damage = rng.gen_range(0.0..=20.0);
+            let damage = rng.gen_range(0..=20) as f32;
             animal.apply_damage(damage);
         }
-        self.hours_passed += 1;
+        self.hour += 1;
     }
 
     fn feed_animals(&mut self) {
         let mut rng = rand::thread_rng();
-        let monkey_bonus = rng.gen_range(10.0..=25.0);
-        let giraffe_bonus = rng.gen_range(10.0..=25.0);
-        let elephant_bonus = rng.gen_range(10.0..=25.0);
+        let monkey_boost = rng.gen_range(10..=25) as f32;
+        let giraffe_boost = rng.gen_range(10..=25) as f32;
+        let elephant_boost = rng.gen_range(10..=25) as f32;
 
         for animal in &mut self.animals {
-            match animal.species {
-                "Monkey" => animal.feed(monkey_bonus),
-                "Giraffe" => animal.feed(giraffe_bonus),
-                "Elephant" => animal.feed(elephant_bonus),
-                _ => {}
+            match animal.animal_type {
+                AnimalType::Monkey => animal.feed(monkey_boost),
+                AnimalType::Giraffe => animal.feed(giraffe_boost),
+                AnimalType::Elephant => animal.feed(elephant_boost),
             }
         }
     }
-}
 
-impl epi::App for ZooApp {
-    fn name(&self) -> &str {
-        "Zoo Simulator"
-    }
-
-    fn update(&mut self, ctx: &egui::Context, _frame: &epi::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Zoo Simulator");
-            ui.label(format!("Hours passed: {}", self.hours_passed));
-
-            if ui.button("Pass an hour").clicked() {
-                self.pass_time();
-            }
-
-            if ui.button("Feed the animals").clicked() {
-                self.feed_animals();
-            }
-
-            ui.separator();
-            ui.heading("Animals");
-            for animal in &self.animals {
-                ui.label(format!(
-                    "{} - Health: {:.1}%, State: {:?}",
-                    animal.species, animal.health, animal.state
-                ));
-            }
-        });
+    fn display(&self) {
+        println!("\n===== ZOO STATUS (Hour: {}) =====", self.hour);
+        for (i, animal) in self.animals.iter().enumerate() {
+            let a_type = match animal.animal_type {
+                AnimalType::Monkey => "Monkey",
+                AnimalType::Giraffe => "Giraffe",
+                AnimalType::Elephant => "Elephant",
+            };
+            let a_state = match animal.state {
+                AnimalState::Alive => "Alive",
+                AnimalState::Dead => "Dead",
+                AnimalState::CannotWalk => "Cannot Walk",
+            };
+            println!(
+                "{}: {} | Health: {:.1}% | State: {}",
+                i + 1,
+                a_type,
+                animal.health,
+                a_state
+            );
+        }
+        println!("===============================\n");
     }
 }
 
 fn main() {
-    let app = ZooApp::new();
-    let native_options = eframe::NativeOptions::default();
-    eframe::run_native(Box::new(app), native_options);
+    let mut zoo = Zoo::new();
+    loop {
+        zoo.display();
+        println!("Choose an action: (1) Pass Hour, (2) Feed, (3) Exit");
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        match input.trim() {
+            "1" => zoo.pass_hour(),
+            "2" => zoo.feed_animals(),
+            "3" => {
+                println!("Exiting simulator.");
+                break;
+            }
+            _ => println!("Invalid input, try again."),
+        }
+    }
 }
