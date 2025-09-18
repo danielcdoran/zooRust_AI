@@ -1,0 +1,7 @@
+services:
+  mermaid:
+    image: johnsinclair73/mermaid-live-editor:8.14.0
+    container_name: mermaid-live-editor
+    restart: unless-stopped
+    ports:
+      - "8280:80"
